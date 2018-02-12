@@ -16,29 +16,37 @@ import java.util.stream.Collectors;
 public class CorrelationCoefficientProcessor {
 
     private static final int NUMBER_OF_CHANNELS = 22;
-    private static final Path OUTPUT_DIR = Paths.get("/home/mirek/correlations");
+    private final Path outputDir;
+
+
+
     private static final Logger LOGGER = LoggerFactory.getLogger(CorrelationCoefficientProcessor.class.getName());
     final private PearsonsCorrelation pearsonsCorrelation;
 
 
-    CorrelationCoefficientProcessor() {
+    CorrelationCoefficientProcessor(Path outputDir) {
+        this.outputDir = outputDir;
         this.pearsonsCorrelation = new PearsonsCorrelation();
     }
 
 
     public void process(Path inputPath) throws IOException, MatrixDimensionsException {
-        LOGGER.info("Processing files...");
+        LOGGER.info("Processing file " + inputPath.getFileName().toString());
         List<File> sortedListOfFiles = Files
                 .list(inputPath)
                 .sorted(Comparator.comparing(x -> x.getFileName().toString()))
                 .map(Path::toFile).collect(Collectors.toList());
 
         List<ReadingsFileRepresentation> readingsFileRepresentations = convertFilesToReadingFilesRepresentations(sortedListOfFiles);
+        Path outDir = Paths.get(outputDir.toString(), inputPath.getFileName().toString());
+        if (Files.notExists(outDir)) {
+            Files.createDirectory(outDir);
+        }
 
         for (int i = 0; i < NUMBER_OF_CHANNELS; i++) {
             LOGGER.info("Processing channel number " + i);
             CorrelationMatrix correlationMatrix = findCorrelationBetweenFilesOnChannel(i, readingsFileRepresentations);
-            correlationMatrixToFile(correlationMatrix);
+            correlationMatrixToFile(outputDir, correlationMatrix);
         }
 
     }
@@ -53,9 +61,9 @@ public class CorrelationCoefficientProcessor {
     }
 
 
-    private void correlationMatrixToFile(CorrelationMatrix correlationMatrix) throws IOException {
+    private void correlationMatrixToFile(Path dir, CorrelationMatrix correlationMatrix) throws IOException {
         List<String[]> lines = correlationMatrix.convertMatrixToListOfLines();
-        Path filePath = Paths.get(OUTPUT_DIR.toString(), String.valueOf(correlationMatrix.getChannelNumber()) + ".csv");
+        Path filePath = Paths.get(dir.toString(), String.valueOf(correlationMatrix.getChannelNumber()) + ".csv");
 
         try (CSVWriter writer = new CSVWriter(new FileWriter(filePath.toString()))) {
             writer.writeAll(lines);
